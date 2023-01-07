@@ -1,3 +1,7 @@
 *.txt
-草稿/
+草稿
 Git常用命令.md
+随记
+.gitignore
+.git
+README.md

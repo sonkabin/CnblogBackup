@@ -1,7 +1,10 @@
 ## 前言
 面试中被问了知道LRU算法吗？当然是秒答知道。知道如何实现LRU么？回答用Java的LinkedHashMap，将`accessOrder`属性设置为`true`即可。接下来问道，是否知道这种实现的缺点？如何改进？emmmmmm，没准备过还真不知道如何回答，因此有了这篇博客进行整理。
 ## LRU的实现方式
-参考[简书：LRU算法](https://www.jianshu.com/p/d533d8a66795)。这里只列举
+参考[简书：LRU算法](https://www.jianshu.com/p/d533d8a66795)。
+
+缓存污染定义：来了一大批被访问的新数据，导致热点key被淘汰，而不常用的key却进入缓存中。
+
 1. 朴素LRU（单个LRU队列）：存在缓存污染问题
 2. LRU-K（最近使用K次）
 3. Two-queue（FIFO+LRU）
@@ -40,16 +43,16 @@ O(1)时间实现LRU的各种操作
 ### MySQL
 InnoDB使用**链表(buffer pool)**实现LRU算法。
 
-- 当要加入新页时，将新页加入到链表的中间(称为midpoint)，它将链表分为两个子链表，头部到midpoint之间的page是"new" sublist，midpoint到尾部之间的page是"old" sublist
-- 实现：
-  - 3/8的buffer pool作为"old" sublist
-  - 新页插在midpoint上。新页产生的原因有：执行query语句，InnoDB的自动预读功能
-  - 访问页后，被访问页会放在"new" sublist的头部。执行query语句后，新页马上会被访问到，故会放到头部；但是预读的页可能不会被访问到，也许到被淘汰时可能都没被访问过
-  - 旧页会在尾部被淘汰
-  - InnoDB默认的全表扫描（mysqldump、没有WHERE条件的SELECT语句）会淘汰大量的旧数据
+- 当要加入新页时，将新页加入到链表的中间(称为midpoint)，它将链表分为两个子链表，头部到midpoint之间的page是new sublist，midpoint到尾部之间的page是old sublist
+- 3/8的buffer pool作为old sublist
+- 新页插在midpoint上。新页产生的原因有：执行query语句，InnoDB的自动预读功能
+- 数据页加载到buffer pool，在`innodb_old_blocks_time=1s`后被访问，才会被移动new sublist的头部。执行query语句后，新页马上会被访问到，故会放到头部；但是预读的页可能不会被访问到，也许到被淘汰时可能都没被访问过
+- 头部到midpoint之间的3/4 page被访问不会移动，这是为了减少缓冲区的异动
+- 旧页会在尾部被淘汰
+- InnoDB默认的全表扫描（mysqldump、没有WHERE条件的SELECT语句）会淘汰大量的旧数据，通过设置`innodb_old_blocks_time`，可以保护频繁被访问的页面不被淘汰。
 ### Redis
 为了节约内存，不用链表而是用**数组(pool)**实现LRU
-- 随机挑选N个key，放入pool中
+- 当有一个key过期时，随机挑选N个key，放入pool（大小为M）中
 - pool中按照idle从小到大的顺序排列，idle越大，淘汰的优先级越高
 - pool满时，将第一个key挤出pool
 - 淘汰时，淘汰最后一个key
